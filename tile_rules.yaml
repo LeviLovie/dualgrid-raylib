@@ -1,0 +1,35 @@
+size: 8
+
+rules:
+  - neighbors: [false, false, true, false]
+    sprite: { x: 0, y: 0 }
+  - neighbors: [false, true, false, true]
+    sprite: { x: 8, y: 0 }
+  - neighbors: [true, false, true, true]
+    sprite: { x: 16, y: 0 }
+  - neighbors: [false, false, true, true]
+    sprite: { x: 24, y: 0 }
+  - neighbors: [true, false, false, true]
+    sprite: { x: 0, y: 8 }
+  - neighbors: [false, true, true, true]
+    sprite: { x: 8, y: 8 }
+  - neighbors: [true, true, true, true]
+    sprite: { x: 16, y: 8 }
+  - neighbors: [true, true, true, false]
+    sprite: { x: 24, y: 8 }
+  - neighbors: [false, true, false, false]
+    sprite: { x: 0, y: 16 }
+  - neighbors: [true, true, false, false]
+    sprite: { x: 8, y: 16 }
+  - neighbors: [true, true, false, true]
+    sprite: { x: 16, y: 16 }
+  - neighbors: [true, false, true, false]
+    sprite: { x: 24, y: 16 }
+  - neighbors: [false, false, false, false]
+    sprite: { x: 0, y: 24 }
+  - neighbors: [false, false, false, true]
+    sprite: { x: 8, y: 24 }
+  - neighbors: [false, true, true, false]
+    sprite: { x: 16, y: 24 }
+  - neighbors: [true, false, false, false]
+    sprite: { x: 24, y: 24 }
