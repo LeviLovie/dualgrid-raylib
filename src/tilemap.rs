@@ -1,4 +1,4 @@
-use log::{info, error};
+use log::{error, info};
 use raylib::prelude::*;
 
 pub struct Chunk {
@@ -11,8 +11,17 @@ pub struct Chunk {
 
 impl Chunk {
     pub fn new(x: i32, y: i32, size_x: i32, size_y: i32, data: Vec<Vec<bool>>) -> Self {
-        info!("Chunk created at ({}, {}) with size ({}, {})", x, y, size_x, size_y);
-        Self { x, y, size_x, size_y, data }
+        info!(
+            "Chunk created at ({}, {}) with size ({}, {})",
+            x, y, size_x, size_y
+        );
+        Self {
+            x,
+            y,
+            size_x,
+            size_y,
+            data,
+        }
     }
 
     pub fn get(&self, x: i32, y: i32) -> bool {
@@ -40,24 +49,60 @@ pub struct TileRule {
 
 pub struct TileRules {
     pub rules: Vec<TileRule>,
+    sprite_atlas: Option<String>,
+    yaml_file: Option<String>,
 }
 
 impl TileRules {
-    pub fn new(
-        rl: &mut RaylibHandle,
-        thread: &RaylibThread,
-        yaml_file: &str,
-        sprite_atlas: &str,
-    ) -> Self {
-        let f = match std::fs::File::open(yaml_file) {
-            Ok(f) => f,
+    pub fn new() -> Self {
+        Self {
+            rules: vec![],
+            sprite_atlas: None,
+            yaml_file: None,
+        }
+    }
+
+    pub fn with_sprite_atlas(mut self, sprite_atlas: &str) -> Self {
+        self.sprite_atlas = Some(sprite_atlas.to_string());
+        self
+    }
+
+    pub fn with_yaml_file(mut self, yaml_file: &str) -> Self {
+        let file_data = match std::fs::read_to_string(yaml_file) {
+            Ok(data) => data,
             Err(e) => {
-                error!("Failed to open the {} file: {}", yaml_file, e);
+                error!("Failed to read the {} file: {}", yaml_file, e);
                 std::process::exit(1);
             }
         };
 
-        let data: serde_yaml::Value = match serde_yaml::from_reader(f) {
+        self.yaml_file = Some(file_data);
+        self
+    }
+
+    pub fn with_bytes_yaml_file(mut self, yaml_file: &[u8]) -> Self {
+        self.yaml_file = Some(std::str::from_utf8(yaml_file).unwrap().to_string());
+        self
+    }
+
+    pub fn load(mut self, rl: &mut RaylibHandle, thread: &RaylibThread) -> Self {
+        let sprite_atlas = match self.sprite_atlas {
+            None => {
+                error!("Tried to load the tile rules without providing a sprite atlas");
+                std::process::exit(1);
+            }
+            Some(ref sprite_atlas) => sprite_atlas.clone(),
+        };
+
+        let yaml_file = match self.yaml_file {
+            None => {
+                error!("Tried to load the tile rules without providing a yaml file");
+                std::process::exit(1);
+            }
+            Some(ref yaml_file) => yaml_file.clone(),
+        };
+
+        let data: serde_yaml::Value = match serde_yaml::from_str(&yaml_file) {
             Ok(d) => d,
             Err(e) => {
                 error!("Failed to parse the {} file: {}", yaml_file, e);
@@ -169,16 +214,37 @@ impl TileRules {
             }
         };
 
-        TileRules { rules }
+        self.rules = rules;
+
+        self
     }
 
     pub fn tile_by_rules(&self, neighbors: [bool; 4]) -> &TileRule {
+        self.check_loaded();
+
         match self.rules.iter().find(|rule| rule.neighbors == neighbors) {
             Some(rule) => &rule,
             None => {
                 error!("Neighbors value not found in the rules");
                 std::process::exit(1);
             }
+        }
+    }
+
+    pub fn check_loaded(&self) {
+        if self.rules.len() == 0 {
+            error!("Tried to use the tile rules without loading them first");
+            std::process::exit(1);
+        }
+
+        if self.yaml_file.is_none() {
+            error!("Tried to use the tile rules without providing a yaml file");
+            std::process::exit(1);
+        }
+
+        if self.sprite_atlas.is_none() {
+            error!("Tried to use the tile rules without providing a sprite atlas");
+            std::process::exit(1);
         }
     }
 }
@@ -189,113 +255,22 @@ pub struct TileMap {
 }
 
 impl TileMap {
-    pub fn new(
-        rl: &mut RaylibHandle,
-        thread: &RaylibThread,
-        yaml_file: &str,
-        sprite_atlas: &str,
-    ) -> Self {
-        let rules = TileRules::new(rl, thread, yaml_file, sprite_atlas);
-        let chunks = vec![];
+    pub fn new(rules: TileRules) -> Self {
+        rules.check_loaded();
 
-        Self { rules, chunks }
-    }
-
-    pub fn load_chunk_from_yaml(&mut self, yaml_file: &str) {
-        let f = match std::fs::File::open(yaml_file) {
-            Ok(f) => f,
-            Err(e) => {
-                error!("Failed to open the {} file: {}", yaml_file, e);
-                std::process::exit(1);
-            }
-        };
-
-        let data: serde_yaml::Value = match serde_yaml::from_reader(f) {
-            Ok(d) => d,
-            Err(e) => {
-                error!("Failed to parse the {} file: {}", yaml_file, e);
-                std::process::exit(1);
-            }
-        };
-
-        // Yaml:
-        // x: 0
-        // y: 0
-        // size: 2
-        // data:
-        //   - [0, 0]
-        //   - [0, 0]
-
-        let x = match data["x"].as_i64() {
-            Some(x) => x as i32,
-            None => {
-                error!("Invalid x value in the chunk data");
-                std::process::exit(1);
-            }
-        };
-
-        let y = match data["y"].as_i64() {
-            Some(y) => y as i32,
-            None => {
-                error!("Invalid y value in the chunk data");
-                std::process::exit(1);
-            }
-        };
-
-        let size_x = match data["size_x"].as_i64() {
-            Some(size) => size as i32,
-            None => {
-                error!("Invalid size x value in the chunk data");
-                std::process::exit(1);
-            }
-        };
-
-        let size_y = match data["size_y"].as_i64() {
-            Some(size) => size as i32,
-            None => {
-                error!("Invalid size y value in the chunk data");
-                std::process::exit(1);
-            }
-        };
-
-        let chunk = Chunk::new(
-            x,
-            y,
-            size_x,
-            size_y,
-            match data["data"].as_sequence() {
-                Some(data) => data
-                    .iter()
-                    .map(|row| match row.as_sequence() {
-                        Some(row) => row
-                            .iter()
-                            .map(|value| match value.as_u64() {
-                                Some(value) => value == 1,
-                                None => {
-                                    error!("Invalid value in the chunk data");
-                                    std::process::exit(1);
-                                }
-                            })
-                            .collect(),
-                        None => {
-                            error!("Invalid row value in the chunk data");
-                            std::process::exit(1);
-                        }
-                    })
-                    .collect(),
-                None => {
-                    error!("Invalid data value in the chunk data");
-                    std::process::exit(1);
-                }
-            },
-        );
-
-        self.chunks.push(chunk);
+        Self {
+            rules,
+            chunks: vec![],
+        }
     }
 
     pub fn get(&self, x: i32, y: i32) -> bool {
         for chunk in self.chunks.iter() {
-            if x >= chunk.x && x < chunk.x + chunk.size_x && y >= chunk.y && y < chunk.y + chunk.size_y {
+            if x >= chunk.x
+                && x < chunk.x + chunk.size_x
+                && y >= chunk.y
+                && y < chunk.y + chunk.size_y
+            {
                 return chunk.get(x - chunk.x, y - chunk.y);
             }
         }
@@ -305,7 +280,11 @@ impl TileMap {
 
     pub fn set(&mut self, x: i32, y: i32, value: bool) {
         for chunk in self.chunks.iter_mut() {
-            if x >= chunk.x && x < chunk.x + chunk.size_x && y >= chunk.y && y < chunk.y + chunk.size_y {
+            if x >= chunk.x
+                && x < chunk.x + chunk.size_x
+                && y >= chunk.y
+                && y < chunk.y + chunk.size_y
+            {
                 chunk.set(x - chunk.x, y - chunk.y, value);
                 return;
             }
@@ -313,7 +292,13 @@ impl TileMap {
     }
 
     pub fn add_chunk(&mut self, x: i32, y: i32, size_x: i32, size_y: i32) {
-        let chunk = Chunk::new(x, y, size_x, size_y, vec![vec![false; size_x as usize]; size_y as usize]);
+        let chunk = Chunk::new(
+            x,
+            y,
+            size_x,
+            size_y,
+            vec![vec![false; size_x as usize]; size_y as usize],
+        );
         self.chunks.push(chunk);
     }
 
@@ -336,9 +321,9 @@ impl TileMap {
                         Rectangle::new(0.0, 0.0, sprite_rule.size as f32, sprite_rule.size as f32),
                         Rectangle::new(
                             (chunk.x + x) as f32 * sprite_rule.size as f32 * 4.0
-                                    + sprite_rule.size as f32 * 4.0 / 2.0,
+                                + sprite_rule.size as f32 * 4.0 / 2.0,
                             (chunk.y + y) as f32 * sprite_rule.size as f32 * 4.0
-                                    + sprite_rule.size as f32 * 4.0 / 2.0,
+                                + sprite_rule.size as f32 * 4.0 / 2.0,
                             sprite_rule.size as f32 * 4.0,
                             sprite_rule.size as f32 * 4.0,
                         ),

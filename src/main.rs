@@ -30,10 +30,18 @@ fn main() {
     info!("Texture \"water.png\" loaded");
 
     // Load the tilemap
-    let mut tilemap =
-        tilemap::TileMap::new(&mut rl, &thread, "tile_rules.yaml", "resources/grass.png");
+    let tile_rules = tilemap::TileRules::new()
+        .with_bytes_yaml_file(include_bytes!("../include/tile_rules.yaml"))
+        .with_sprite_atlas("resources/grass.png")
+        .load(&mut rl, &thread);
+    let mut tilemap = tilemap::TileMap::new(tile_rules);
 
-    tilemap.add_chunk(0, 0, f32::ceil(SCREEN_WIDTH as f32 / 8.0 / 4.0) as i32, f32::ceil(SCREEN_HEIGHT as f32 / 8.0 / 4.0) as i32);
+    tilemap.add_chunk(
+        0,
+        0,
+        f32::ceil(SCREEN_WIDTH as f32 / 8.0 / 4.0) as i32,
+        f32::ceil(SCREEN_HEIGHT as f32 / 8.0 / 4.0) as i32,
+    );
 
     // Enter the game loop
     while !rl.window_should_close() {
@@ -41,6 +49,21 @@ fn main() {
 
         let mut d = rl.begin_drawing(&thread);
         d.clear_background(Color::WHITE);
+
+        // If the mouse is pressed, add a tile to the tilemap
+        if d.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT) {
+            tilemap.set(
+                f32::floor(mouse_pos.x / 8.0 / 4.0) as i32,
+                f32::floor(mouse_pos.y / 8.0 / 4.0) as i32,
+                true,
+            );
+        } else if d.is_mouse_button_down(MouseButton::MOUSE_BUTTON_RIGHT) {
+            tilemap.set(
+                f32::floor(mouse_pos.x / 8.0 / 4.0) as i32,
+                f32::floor(mouse_pos.y / 8.0 / 4.0) as i32,
+                false,
+            );
+        }
 
         // Draw the water texture as the background
         for i in 0..SCREEN_WIDTH / &water.width() {
@@ -65,20 +88,5 @@ fn main() {
             8 * 4,
             Color::new(255, 0, 0, 128),
         );
-        
-        // If the mouse is pressed, add a tile to the tilemap
-        if d.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT) {
-            tilemap.set(
-                f32::floor(mouse_pos.x / 8.0 / 4.0) as i32,
-                f32::floor(mouse_pos.y / 8.0 / 4.0) as i32,
-                true,
-            );
-        } else if d.is_mouse_button_down(MouseButton::MOUSE_BUTTON_RIGHT) {
-            tilemap.set(
-                f32::floor(mouse_pos.x / 8.0 / 4.0) as i32,
-                f32::floor(mouse_pos.y / 8.0 / 4.0) as i32,
-                false,
-            );
-        }
     }
 }
