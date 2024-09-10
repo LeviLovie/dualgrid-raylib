@@ -7,7 +7,7 @@ For info about dual grid system look here: https://www.youtube.com/watch?v=jEWFS
 ## Running
 Insure rust and cargo are installed: https://doc.rust-lang.org/cargo/getting-started/installation.html
 
-Run the following command to run the project:
+Use the following command to run the project:
 ```bash
 cargo run --release
 ```
